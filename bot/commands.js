@@ -3,6 +3,8 @@ const { music, requestRestart, resetVar } = require("./music.js");
 const { enableCounting, disableCounting, getMaxCount, setDisconnected, subscribe, unsubscribe, getSubscribedChannels, updateCache } = require("./database.js")
 const { restart, cancelRestart } = require("./restart.js");
 const { wishlistCommand } = require("./wishlist.js")
+const simpleGit = require("simple-git");
+const git = simpleGit.default();
 
 const prefix = process.env.PREFIX;
 let killTimeout = null;
@@ -66,6 +68,12 @@ module.exports = {
           updateCache();
         }
         break;
+      case "gitpull":
+        if (message.author.id == process.env.OWNER_ID || staffArray.includes(message.author.id)) {
+          message.react("🔄");
+          gitPull();
+        }
+        break;
       case "sendmsg":
         sendMessage(message, args);
         break;
@@ -86,12 +94,14 @@ module.exports = {
       case "pause":
       case "resume":
       case "skip":
+      case "s":
       case "stop":
       case "queue":
       case "q":
       case "remove":
       case "np":
       case "loop":
+      case "l":
       case "loopqueue":
       case "loopq":
       case "forcerickroll":
@@ -119,7 +129,7 @@ function log(message) {
 // not crash on unhandled promise rejection, log then exit (auto restarts on Heroku)
 process.on('unhandledRejection', (reason, promise) => {
   log("[APP] **ERR** | **Unhandled Promise Rejection:** ```" + reason.stack + "```" || reason + "```");
-  if (reason.stack?.startsWith("DiscordAPIError: Missing Permissions")) {
+  if (reason.stack?.startsWith("DiscordAPIError[50013]:") || reason.stack?.includes("Missing Permissions")) {
     return log("Missing Permissions for something basic. No big deal.");
   }
   requestRestart();
@@ -226,7 +236,6 @@ function adminHelpMsg(message) {
     .setFooter({text: "The Mist Bot - made by R2D2Vader"})
     .addFields(
       { name: `My global prefix is \`${prefix}\``, value: "===" },
-      { name: "Admin Page", value: "Click [here](https://themistbot.herokuapp.com/admin.html) to visit the Admin page and send messages or changelogs." },
       {
         name: "`" + prefix + "restart`",
         value: "Restarts the bot. Do this mainly to solve weird, bot-breaking issues."
@@ -254,6 +263,10 @@ function adminHelpMsg(message) {
       {
         name: "`" + prefix + "updatecache`",
         value: "Manually updates the list of counting channels from the database."
+      },
+      {
+        name: "`" + prefix + "gitpull`",
+        value: "Make the bot run `git pull` to update itself to the latest version."
       },
     );
 
@@ -371,4 +384,12 @@ async function sendUpdate(fmessage, title) {
 
   }
   else fmessage.channel.send(`\`update\` is not a command. **Type** \`${prefix}help\` **to see the list of commands**.`)
+}
+
+async function gitPull() {
+  log("[GIT] Running `git pull` now.");
+  await git.pull(["origin", "master"]);
+  let hash = await git.revparse(["HEAD"]);
+  log("[GIT] Now up-to-date with `" + hash.slice(0, 7) + "`");
+  requestRestart("", true);
 }
